@@ -1,0 +1,36 @@
+__pycache__/
+*.py[cod]
+*.pyo
+
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+
+local_docs/
+
+# Model and dataset caches
+.cache/
+cache/
+models/
+checkpoints/
+*.safetensors
+*.bin
+*.pt
+*.pth
+
+# Generated experiment outputs
+results/*defense*.jsonl
+results/*defense*.json
+results/gcg_*.jsonl
+results/gcg_*.csv
+
+# Local archives and packaging
+*.zip
+kaggle_upload/
+repo_upload_package/
+
+# Environment files
+.env
+venv/
+.venv/
+env/

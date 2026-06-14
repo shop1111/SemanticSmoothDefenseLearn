@@ -1,0 +1,7 @@
+torch
+accelerate
+bitsandbytes
+protobuf
+sentencepiece
+transformers==4.48.3
+tqdm
