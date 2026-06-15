@@ -29,8 +29,8 @@ from typing import Any, Iterable
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
-DEFAULT_AUTODAN_RESULTS = PROJECT_ROOT / "results" / "qwen25_3b_hga_50.jsonl"
-DEFAULT_OUTPUT = PROJECT_ROOT / "results" / "qwen25_15b_gcg_autodan_defense.jsonl"
+DEFAULT_AUTODAN_RESULTS = PROJECT_ROOT / "results" / "autodan" / "autodan_final_normalized.jsonl"
+DEFAULT_OUTPUT = PROJECT_ROOT / "results" / "qwen25_15b_gcg_autodan_defense_run.jsonl"
 
 REFUSAL_SIGNALS = [
     "i'm sorry",
@@ -220,14 +220,15 @@ def load_autodan_examples(path: Path | None, start: int, limit: int) -> list[Att
     for row in rows[start : start + limit]:
         goal = str(row.get("goal", "")).strip()
         suffix = str(row.get("final_suffix") or row.get("suffix") or row.get("prompt") or "").strip()
-        if not goal or not suffix:
+        full_prompt = str(row.get("full_prompt") or row.get("input") or "").strip()
+        if not goal or (not suffix and not full_prompt):
             continue
         examples.append(
             AttackExample(
                 attack_type="autodan",
                 index=int(row.get("index", len(examples))),
                 goal=goal,
-                prompt=build_autodan_prompt(goal, suffix),
+                prompt=full_prompt or build_autodan_prompt(goal, suffix),
                 source_success=truthy(row.get("success")),
                 source_response=row.get("final_response") or row.get("response"),
                 source_path=str(path),

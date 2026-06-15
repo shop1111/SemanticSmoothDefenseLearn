@@ -1,8 +1,8 @@
 # SemanticSmooth Defense Learning Project
 
-This project is a small, Kaggle-friendly reproduction scaffold for studying how
-perplexity filtering and smoothing-based defenses behave against two different
-jailbreak attack styles:
+This project is a Kaggle-friendly reproduction scaffold for studying how
+perplexity filtering and smoothing-based defenses behave against two jailbreak
+attack styles:
 
 - **GCG-style attacks**: token-level adversarial suffixes that often look
   unnatural and have high perplexity.
@@ -11,38 +11,37 @@ jailbreak attack styles:
 
 The default model is `Qwen/Qwen2.5-1.5B-Instruct`.
 
-## What This Project Tests
-
-The experiment asks three practical questions:
-
-1. Can a simple **PPL filter** catch adversarial prompts with unusually high
-   perplexity?
-2. Does that PPL filter work better on GCG-style prompts than AutoDAN-style
-   prompts?
-3. Can a lightweight **SemanticSmooth-lite** defense reduce attack success by
-   perturbing prompts and voting over model responses?
-
-PPL filtering is used as a baseline defense. SemanticSmooth-lite is the main
-defense reproduction idea.
-
 ## Project Layout
 
 ```text
 src/
-  ppl_smoothing_defense_kaggle.py
+  ppl_smoothing_defense_kaggle.py        # PPL filter + SemanticSmooth-lite evaluation
+  prepare_defense_training_inputs.py     # Normalize GCG/AutoDAN artifacts
 reports/
   Kaggle_Qwen25_15B_PPL_Smoothing运行说明.md
 results/
-  qwen25_3b_hga_50.jsonl
+  gcg_qwen25_15b.jsonl                   # Formal GCG input, 25 rows
+  autodan/
+    autodan_final_normalized.jsonl        # Formal AutoDAN input, 10 rows
+  defense_training_inputs.jsonl           # Unified attack-positive inputs, 35 rows
+  defense_training_inputs_summary.json
+  defense_training_inputs_summary.csv
+  archive/                                # Legacy/intermediate generation artifacts
 examples/
   README.md
 requirements.txt
 ```
 
-`results/qwen25_3b_hga_50.jsonl` is kept as an AutoDAN result file for defense
-evaluation input.
+The main Kaggle run should use:
 
-## Kaggle Setup
+- `results/gcg_qwen25_15b.jsonl`
+- `results/autodan/autodan_final_normalized.jsonl`
+
+`results/archive/qwen25_3b_hga_50_legacy_hga.jsonl` is kept only as a legacy
+input reference. AutoDAN generation intermediates are under
+`results/archive/autodan_generation/`.
+
+## Setup
 
 ```bash
 pip install -r requirements.txt
@@ -65,43 +64,53 @@ PY
 ```bash
 python src/ppl_smoothing_defense_kaggle.py \
   --model Qwen/Qwen2.5-1.5B-Instruct \
-  --autodan-results results/qwen25_3b_hga_50.jsonl \
-  --limit 2 \
-  --smooth-copies 3 \
-  --max-new-tokens 64 \
-  --output results/qwen25_15b_defense_smoke.jsonl \
-  --summary-output results/qwen25_15b_defense_smoke_summary.json
-```
-
-When no `--gcg-results` file is provided, the script adds a small built-in
-GCG-like smoke set. Use real GCG results for formal reporting.
-
-## AutoDAN Defense Run
-
-```bash
-python src/ppl_smoothing_defense_kaggle.py \
-  --model Qwen/Qwen2.5-1.5B-Instruct \
-  --autodan-results results/qwen25_3b_hga_50.jsonl \
-  --limit 50 \
-  --smooth-copies 5 \
-  --max-new-tokens 64 \
-  --output results/qwen25_15b_autodan_defense.jsonl \
-  --summary-output results/qwen25_15b_autodan_defense_summary.json
-```
-
-## GCG + AutoDAN Comparison
-
-```bash
-python src/ppl_smoothing_defense_kaggle.py \
-  --model Qwen/Qwen2.5-1.5B-Instruct \
-  --autodan-results results/qwen25_3b_hga_50.jsonl \
+  --autodan-results results/autodan/autodan_final_normalized.jsonl \
   --gcg-results results/gcg_qwen25_15b.jsonl \
-  --limit 50 \
+  --limit 2 \
+  --smooth-copies 2 \
+  --max-new-tokens 64 \
+  --output results/qwen25_15b_smoke_defense_run.jsonl \
+  --summary-output results/qwen25_15b_smoke_defense_summary.json
+```
+
+## GCG + AutoDAN Defense Run
+
+```bash
+python src/ppl_smoothing_defense_kaggle.py \
+  --model Qwen/Qwen2.5-1.5B-Instruct \
+  --autodan-results results/autodan/autodan_final_normalized.jsonl \
+  --gcg-results results/gcg_qwen25_15b.jsonl \
+  --limit 25 \
   --smooth-copies 5 \
   --max-new-tokens 64 \
-  --output results/qwen25_15b_gcg_autodan_defense.jsonl \
+  --output results/qwen25_15b_gcg_autodan_defense_run.jsonl \
   --summary-output results/qwen25_15b_gcg_autodan_defense_summary.json
 ```
+
+`--limit 25` reads up to 25 rows from each attack file. With the current inputs,
+the run evaluates 25 GCG rows and 10 AutoDAN rows.
+
+## Preparing Inputs Again
+
+If you have new external GCG or AutoDAN artifacts, normalize them with:
+
+```bash
+python src/prepare_defense_training_inputs.py \
+  --gcg-artifact /path/to/GCG/Qwen2.5-1.5B-Instruct.json \
+  --gcg-eval /path/to/eval_local_details.json \
+  --autodan /path/to/autodan_final.jsonl
+```
+
+Default outputs:
+
+- `results/gcg_qwen25_15b.jsonl`
+- `results/autodan/autodan_final_normalized.jsonl`
+- `results/defense_training_inputs.jsonl`
+- `results/defense_training_inputs_summary.json`
+- `results/defense_training_inputs_summary.csv`
+
+The unified training file currently contains attack-positive examples only.
+Add benign/refusal/ordinary prompts before training a binary defense classifier.
 
 ## Main Output Fields
 
@@ -126,6 +135,6 @@ python src/ppl_smoothing_defense_kaggle.py \
 ## Notes
 
 This is a course reproduction scaffold, not a full reproduction of the original
-SemanticSmooth training pipeline. It focuses on the experimental idea: compare a
-simple PPL baseline with smoothing-style prompt perturbation, then analyze why
-semantic attacks are harder to catch than token-level suffix attacks.
+SemanticSmooth training pipeline. It focuses on comparing a simple PPL baseline
+with smoothing-style prompt perturbation and explaining why semantic attacks are
+harder to catch than token-level suffix attacks.

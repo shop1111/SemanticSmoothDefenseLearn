@@ -7,6 +7,8 @@ __pycache__/
 .mypy_cache/
 
 local_docs/
+协作要求.txt
+raw_inputs/
 
 # Model and dataset caches
 .cache/
@@ -19,10 +21,10 @@ checkpoints/
 *.pth
 
 # Generated experiment outputs
-results/*defense*.jsonl
-results/*defense*.json
-results/gcg_*.jsonl
-results/gcg_*.csv
+results/*defense_run*.jsonl
+results/*defense_run*.json
+results/*_defense_output.jsonl
+results/*_defense_summary.json
 
 # Local archives and packaging
 *.zip
