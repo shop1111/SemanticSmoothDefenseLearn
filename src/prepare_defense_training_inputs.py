@@ -247,8 +247,16 @@ def main() -> None:
     parser.add_argument("--gcg-artifact", type=Path, default=DEFAULT_GCG_ARTIFACT)
     parser.add_argument("--gcg-eval", type=Path, default=DEFAULT_GCG_EVAL)
     parser.add_argument("--autodan", type=Path, default=DEFAULT_AUTODAN)
-    parser.add_argument("--gcg-output", type=Path, default=PROJECT_ROOT / "results" / "gcg_qwen25_15b.jsonl")
-    parser.add_argument("--autodan-output", type=Path, default=PROJECT_ROOT / "results" / "autodan" / "autodan_final_normalized.jsonl")
+    parser.add_argument(
+        "--gcg-output",
+        type=Path,
+        default=PROJECT_ROOT / "results" / "archive" / "normalized_inputs" / "gcg_qwen25_15b.jsonl",
+    )
+    parser.add_argument(
+        "--autodan-output",
+        type=Path,
+        default=PROJECT_ROOT / "results" / "archive" / "normalized_inputs" / "autodan_final_normalized.jsonl",
+    )
     parser.add_argument("--training-output", type=Path, default=PROJECT_ROOT / "results" / "defense_training_inputs.jsonl")
     parser.add_argument("--summary-output", type=Path, default=PROJECT_ROOT / "results" / "defense_training_inputs_summary.json")
     parser.add_argument("--summary-csv", type=Path, default=PROJECT_ROOT / "results" / "defense_training_inputs_summary.csv")

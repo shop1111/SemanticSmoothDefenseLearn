@@ -29,7 +29,7 @@ from typing import Any, Iterable
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
-DEFAULT_AUTODAN_RESULTS = PROJECT_ROOT / "results" / "autodan" / "autodan_final_normalized.jsonl"
+DEFAULT_ATTACK_INPUTS = PROJECT_ROOT / "results" / "defense_training_inputs.jsonl"
 DEFAULT_OUTPUT = PROJECT_ROOT / "results" / "qwen25_15b_gcg_autodan_defense_run.jsonl"
 
 REFUSAL_SIGNALS = [
@@ -134,7 +134,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--ppl-model", default=None, help="Defaults to --model when omitted.")
-    parser.add_argument("--autodan-results", type=Path, default=DEFAULT_AUTODAN_RESULTS)
+    parser.add_argument("--attack-inputs", type=Path, default=DEFAULT_ATTACK_INPUTS)
+    parser.add_argument("--autodan-results", type=Path, default=None, help="Legacy split AutoDAN input.")
     parser.add_argument("--gcg-results", type=Path, default=None)
     parser.add_argument("--benign-prompts", type=Path, default=None)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
@@ -264,6 +265,33 @@ def load_gcg_examples(path: Path | None, start: int, limit: int) -> list[AttackE
                 goal=goal or prompt,
                 prompt=prompt,
                 source_success=truthy(row["success"] if "success" in row else row.get("attack_success")),
+                source_response=row.get("response") or row.get("final_response"),
+                source_path=str(path),
+            )
+        )
+    return examples
+
+
+def load_unified_attack_examples(path: Path | None, start: int, limit: int) -> list[AttackExample]:
+    if not path or not path.exists():
+        return []
+    rows = read_jsonl(path)
+    examples: list[AttackExample] = []
+    for row in rows[start : start + limit]:
+        if row.get("is_attack") is False or row.get("label") not in (None, "attack"):
+            continue
+        prompt = str(row.get("input") or row.get("prompt") or row.get("full_prompt") or "").strip()
+        if not prompt:
+            continue
+        attack_type = str(row.get("attack_type") or "attack").strip()
+        index = row.get("index", row.get("row_id", len(examples)))
+        examples.append(
+            AttackExample(
+                attack_type=attack_type,
+                index=int(index),
+                goal=str(row.get("goal") or prompt).strip(),
+                prompt=prompt,
+                source_success=truthy(row.get("attack_success") if "attack_success" in row else row.get("success")),
                 source_response=row.get("response") or row.get("final_response"),
                 source_path=str(path),
             )
@@ -513,15 +541,20 @@ def main() -> None:
     load_ml_dependencies()
     rng = random.Random(args.seed)
 
-    autodan_examples = load_autodan_examples(args.autodan_results, args.start, args.limit)
-    gcg_examples = load_gcg_examples(args.gcg_results, args.start, args.limit)
-    if args.include_builtin_gcg or (args.gcg_results is None and not gcg_examples):
-        gcg_limit = max(2, min(args.limit, len(autodan_examples) or args.limit))
-        gcg_examples.extend(builtin_gcg_examples((ex.goal for ex in autodan_examples), gcg_limit))
+    examples = load_unified_attack_examples(args.attack_inputs, args.start, args.limit)
+    if args.autodan_results or args.gcg_results:
+        examples = load_autodan_examples(args.autodan_results, args.start, args.limit)
+        gcg_examples = load_gcg_examples(args.gcg_results, args.start, args.limit)
+        if args.include_builtin_gcg or (args.gcg_results is None and not gcg_examples):
+            gcg_limit = max(2, min(args.limit, len(examples) or args.limit))
+            gcg_examples.extend(builtin_gcg_examples((ex.goal for ex in examples), gcg_limit))
+        examples.extend(gcg_examples)
+    elif args.include_builtin_gcg:
+        gcg_limit = max(2, min(args.limit, len(examples) or args.limit))
+        examples.extend(builtin_gcg_examples((ex.goal for ex in examples), gcg_limit))
 
-    examples = autodan_examples + gcg_examples
     if not examples:
-        raise ValueError("No attack examples loaded. Provide --autodan-results, --gcg-results, or builtin GCG smoke data.")
+        raise ValueError("No attack examples loaded. Provide --attack-inputs or legacy split inputs.")
 
     target = QwenDefenseModel(
         model_name=args.model,

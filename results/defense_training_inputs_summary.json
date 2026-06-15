@@ -1,7 +1,7 @@
 {
   "outputs": {
-    "gcg": "D:\\Code\\AI_attack_learn\\results\\gcg_qwen25_15b.jsonl",
-    "autodan": "D:\\Code\\AI_attack_learn\\results\\autodan\\autodan_final_normalized.jsonl",
+    "gcg": "D:\\Code\\AI_attack_learn\\results\\archive\\normalized_inputs\\gcg_qwen25_15b.jsonl",
+    "autodan": "D:\\Code\\AI_attack_learn\\results\\archive\\normalized_inputs\\autodan_final_normalized.jsonl",
     "training": "D:\\Code\\AI_attack_learn\\results\\defense_training_inputs.jsonl",
     "summary_csv": "D:\\Code\\AI_attack_learn\\results\\defense_training_inputs_summary.csv"
   },

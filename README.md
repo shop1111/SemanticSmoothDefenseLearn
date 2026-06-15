@@ -17,25 +17,29 @@ src/
 reports/
   Kaggle_Qwen25_15B_PPL_Smoothing运行说明.md
 results/
-  gcg_qwen25_15b.jsonl                   # 正式 GCG 输入，25 条
-  autodan/
-    autodan_final_normalized.jsonl        # 正式 AutoDAN 输入，10 条
-  defense_training_inputs.jsonl           # 合并后的 attack-positive 输入，35 条
+  defense_training_inputs.jsonl           # Kaggle 正式统一输入，35 条
   defense_training_inputs_summary.json
   defense_training_inputs_summary.csv
-  archive/                                # 旧输入和中间生成产物归档
+  archive/                                # 旧输入、分文件 normalized 输入和中间产物归档
 examples/
   README.md
 requirements.txt
 ```
 
-正式 Kaggle 运行主要使用：
+正式 Kaggle 运行只使用一个统一输入文件：
 
-- `results/gcg_qwen25_15b.jsonl`
-- `results/autodan/autodan_final_normalized.jsonl`
+```text
+results/defense_training_inputs.jsonl
+```
 
-`results/archive/qwen25_3b_hga_50_legacy_hga.jsonl` 只是旧输入归档。
-AutoDAN 生成过程中的中间文件放在 `results/archive/autodan_generation/`。
+分开的 GCG/AutoDAN normalized 文件已经归档到：
+
+```text
+results/archive/normalized_inputs/gcg_qwen25_15b.jsonl
+results/archive/normalized_inputs/autodan_final_normalized.jsonl
+```
+
+这些分文件只用于追溯和调试，不再作为 Kaggle 主运行路径。
 
 ## 安装依赖
 
@@ -59,13 +63,12 @@ PY
 
 ## 快速测试
 
-先跑 2 条样本，确认模型下载、输入路径和输出文件都正常：
+先跑 2 条样本，确认模型下载、统一输入路径和输出文件都正常：
 
 ```bash
 python src/ppl_smoothing_defense_kaggle.py \
   --model Qwen/Qwen2.5-1.5B-Instruct \
-  --autodan-results results/autodan/autodan_final_normalized.jsonl \
-  --gcg-results results/gcg_qwen25_15b.jsonl \
+  --attack-inputs results/defense_training_inputs.jsonl \
   --limit 2 \
   --smooth-copies 2 \
   --max-new-tokens 64 \
@@ -82,12 +85,12 @@ cat results/qwen25_15b_smoke_defense_summary.json
 
 ## 正式 GCG + AutoDAN 对比实验
 
+当前统一输入共 35 条：25 条 GCG + 10 条 AutoDAN。正式运行可以不传 `--limit`，默认最多读取 50 条，因此会读完整个统一输入。
+
 ```bash
 python src/ppl_smoothing_defense_kaggle.py \
   --model Qwen/Qwen2.5-1.5B-Instruct \
-  --autodan-results results/autodan/autodan_final_normalized.jsonl \
-  --gcg-results results/gcg_qwen25_15b.jsonl \
-  --limit 25 \
+  --attack-inputs results/defense_training_inputs.jsonl \
   --smooth-copies 5 \
   --max-new-tokens 64 \
   --output results/qwen25_15b_gcg_autodan_defense_run.jsonl \
@@ -96,7 +99,7 @@ python src/ppl_smoothing_defense_kaggle.py \
 
 说明：
 
-- `--limit 25` 表示每个攻击文件最多读取 25 条。
+- `--attack-inputs` 是正式统一输入路径。
 - 当前输入会实际评估 25 条 GCG 和 10 条 AutoDAN，共 35 条。
 - `--smooth-copies 5` 表示每条样本额外生成 5 个扰动 prompt。
 - 每条样本大约需要 1 次原始生成 + 5 次平滑扰动生成，再加 PPL 计算。
@@ -108,15 +111,13 @@ python src/ppl_smoothing_defense_kaggle.py \
 ```bash
 python src/ppl_smoothing_defense_kaggle.py \
   --model Qwen/Qwen2.5-1.5B-Instruct \
-  --autodan-results results/autodan/autodan_final_normalized.jsonl \
-  --gcg-results results/gcg_qwen25_15b.jsonl \
-  --limit 25 \
+  --attack-inputs results/defense_training_inputs.jsonl \
   --skip-generation \
   --output results/qwen25_15b_ppl_only_defense_run.jsonl \
   --summary-output results/qwen25_15b_ppl_only_defense_summary.json
 ```
 
-注意：`--skip-generation` 会使用输入文件已有的 `success`/`response` 字段，不会重新调用模型生成回答。
+注意：`--skip-generation` 会使用统一输入文件已有的 `attack_success`/`response` 字段，不会重新调用模型生成回答。
 
 ## 显存不够时
 
@@ -125,8 +126,7 @@ python src/ppl_smoothing_defense_kaggle.py \
 ```bash
 python src/ppl_smoothing_defense_kaggle.py \
   --model Qwen/Qwen2.5-1.5B-Instruct \
-  --autodan-results results/autodan/autodan_final_normalized.jsonl \
-  --gcg-results results/gcg_qwen25_15b.jsonl \
+  --attack-inputs results/defense_training_inputs.jsonl \
   --limit 10 \
   --smooth-copies 3 \
   --max-new-tokens 48 \
@@ -139,9 +139,7 @@ python src/ppl_smoothing_defense_kaggle.py \
 ```bash
 python src/ppl_smoothing_defense_kaggle.py \
   --model Qwen/Qwen2.5-1.5B-Instruct \
-  --autodan-results results/autodan/autodan_final_normalized.jsonl \
-  --gcg-results results/gcg_qwen25_15b.jsonl \
-  --limit 25 \
+  --attack-inputs results/defense_training_inputs.jsonl \
   --smooth-copies 5 \
   --max-new-tokens 64 \
   --load-in-4bit \
@@ -161,13 +159,16 @@ python src/prepare_defense_training_inputs.py \
   --autodan /path/to/autodan_final.jsonl
 ```
 
-默认输出：
+默认正式输出：
 
-- `results/gcg_qwen25_15b.jsonl`
-- `results/autodan/autodan_final_normalized.jsonl`
 - `results/defense_training_inputs.jsonl`
 - `results/defense_training_inputs_summary.json`
 - `results/defense_training_inputs_summary.csv`
+
+默认归档输出：
+
+- `results/archive/normalized_inputs/gcg_qwen25_15b.jsonl`
+- `results/archive/normalized_inputs/autodan_final_normalized.jsonl`
 
 当前 `defense_training_inputs.jsonl` 只有攻击样本，适合做防御评估输入或后续扩展训练集。如果要训练二分类防御器，还需要加入 benign/refusal/ordinary prompts。
 
