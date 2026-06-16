@@ -12,8 +12,8 @@ PPL-gated SemanticSmooth 防御在两类 jailbreak attack 上的表现差异：
 当前创新策略是 **Adaptive PPL-Gated Semantic Smoothing Defense**：先用
 prompt perplexity 作为低成本门控信号；高 PPL 输入直接走 PPL block，低
 PPL 输入先进入 SemanticSmooth-lite 投票；只有 lite 投票接近 50/50 时，才调用
-original-style SemanticSmooth 复核，从而避免对所有样本无差别使用高成本
-smoothing。
+original-style SemanticSmooth 做保守融合复核，从而避免对所有样本无差别使用高成本
+smoothing，也避免 original 覆盖 lite 已经拦截的结果。
 
 ## 项目结构
 
@@ -158,7 +158,7 @@ python src/ppl_smoothing_defense_kaggle.py \
 
 - `prompt_ppl > ppl_threshold`：路由到 `ppl_block`，不再执行 smoothing。
 - `prompt_ppl <= ppl_threshold`：先路由到 `lite_smoothing`，执行 SemanticSmooth-lite 投票。
-- 如果 lite 的 `smooth_success_rate` 距离 0.5 不超过 `--adaptive-uncertain-margin`，再路由到 `original_fallback`，使用 original-style SemanticSmooth 复核。
+- 如果 lite 的 `smooth_success_rate` 距离 0.5 不超过 `--adaptive-uncertain-margin`，再路由到 `original_fallback`，使用 `lite_success AND original_success` 做保守融合。也就是说，original 只能帮助拦截，不能推翻 lite 已经拦住的结果。
 
 ## 只跑 PPL/过滤指标
 

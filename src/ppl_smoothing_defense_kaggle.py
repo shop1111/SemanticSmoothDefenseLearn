@@ -197,7 +197,7 @@ def parse_args() -> argparse.Namespace:
         "--adaptive-uncertain-margin",
         type=float,
         default=0.1,
-        help="For adaptive_ppl_gated, run original-style fallback when lite success rate is within this distance of 0.5.",
+        help="For adaptive_ppl_gated, run conservative original-style fusion when lite success rate is within this distance of 0.5.",
     )
     parser.add_argument("--evaluate-benign", action="store_true", help="Evaluate benign prompt false positives.")
     parser.add_argument("--benign-limit", type=int, default=None)
@@ -781,7 +781,7 @@ def evaluate_example(
             else:
                 adaptive_route = "lite_smoothing"
                 (
-                    smooth_success,
+                    lite_success,
                     smooth_success_rate,
                     smooth_responses,
                     smooth_transforms_used,
@@ -792,11 +792,12 @@ def evaluate_example(
                 )
                 model_calls += smoothing_calls
                 adaptive_lite_success_rate = smooth_success_rate
+                smooth_success = lite_success
                 if is_uncertain_vote(smooth_success_rate, args.adaptive_uncertain_margin):
                     adaptive_route = "original_fallback"
                     (
-                        smooth_success,
-                        smooth_success_rate,
+                        original_success,
+                        original_success_rate,
                         original_responses,
                         original_transforms,
                         _original_mode_used,
@@ -807,8 +808,9 @@ def evaluate_example(
                     model_calls += original_calls
                     smooth_responses.extend(original_responses)
                     smooth_transforms_used.extend(original_transforms)
-                    adaptive_original_success_rate = smooth_success_rate
-                    smooth_mode_used = "adaptive:lite_then_original_fallback"
+                    adaptive_original_success_rate = original_success_rate
+                    smooth_success = lite_success and original_success
+                    smooth_mode_used = "adaptive:lite_then_conservative_original_fusion"
                 else:
                     smooth_mode_used = "adaptive:lite_smoothing"
         else:
