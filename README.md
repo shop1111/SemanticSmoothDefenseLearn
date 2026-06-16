@@ -63,6 +63,7 @@ reports/SemanticSmooth_Lite_vs_Original_Bilingual_Report.md
 ```text
 results/summaries/qwen25_15b_gcg_autodan_lite_summary.json
 results/summaries/qwen25_15b_gcg_autodan_original_summary.json
+results/summaries/qwen25_15b_gcg_autodan_adaptive_summary.json
 ```
 
 ## 安装依赖
@@ -261,9 +262,11 @@ python src/prepare_defense_training_inputs.py \
 | GCG | PPL Filter |  |  |  |  |  |
 | GCG | SemanticSmooth-lite |  |  |  |  |  |
 | GCG | SemanticSmooth original-style |  |  |  |  |  |
+| GCG | Adaptive PPL-gated | 12466.8011 | 84.00% | 76.00% | 16.00% | 1.8 |
 | AutoDAN | PPL Filter |  |  |  |  |  |
 | AutoDAN | SemanticSmooth-lite |  |  |  |  |  |
 | AutoDAN | SemanticSmooth original-style |  |  |  |  |  |
+| AutoDAN | Adaptive PPL-gated | 115.4529 | 4.00% | 96.00% | 48.00% | 10.6 |
 
 ## 注意
 
