@@ -1,40 +1,19 @@
 {
+  "gcg_source": "D:\\Code\\AI_attack_learn\\results\\archive\\normalized_inputs\\gcg_qwen25_15b.jsonl",
+  "population_source": "D:\\Code\\AI_attack_learn\\references\\AutoDAN\\assets\\prompt_group.pth",
+  "advbench_source": "D:\\Code\\AI_attack_learn\\references\\AutoDAN\\data\\advbench\\harmful_behaviors.csv",
+  "limit": 25,
+  "population_rows_available": 500,
+  "rows_written": 50,
+  "gcg_rows": 25,
+  "autodan_rows": 25,
   "outputs": {
-    "gcg": "D:\\Code\\AI_attack_learn\\results\\archive\\normalized_inputs\\gcg_qwen25_15b.jsonl",
-    "autodan": "D:\\Code\\AI_attack_learn\\results\\archive\\normalized_inputs\\autodan_final_normalized.jsonl",
-    "training": "D:\\Code\\AI_attack_learn\\results\\defense_training_inputs.jsonl",
-    "summary_csv": "D:\\Code\\AI_attack_learn\\results\\defense_training_inputs_summary.csv"
+    "archive": "D:\\Code\\AI_attack_learn\\results\\archive\\normalized_inputs\\autodan_initial_population_25.jsonl",
+    "training": "D:\\Code\\AI_attack_learn\\results\\defense_training_inputs.jsonl"
   },
-  "gcg": {
-    "rows": 25,
-    "success_counts": {
-      "True": 25
-    },
-    "empty_suffix_rows": 0
-  },
-  "autodan": {
-    "rows": 10,
-    "success_counts": {
-      "False": 4,
-      "True": 6
-    },
-    "missing_or_empty": {
-      "index": 0,
-      "goal": 0,
-      "final_suffix": 0,
-      "full_prompt": 0,
-      "final_response": 0,
-      "success": 0
-    },
-    "duplicate_indexes": [],
-    "heuristic_success_mismatches": 0,
-    "note": "full_prompt is preserved because AutoDAN rows concatenate final_suffix and goal directly."
-  },
-  "training": {
-    "rows": 35,
-    "label_counts": {
-      "attack": 35
-    },
-    "note": "Only attack-positive rows are included; add benign/refusal/ordinary prompts before binary classifier training."
+  "checks": {
+    "unique_suffixes": 25,
+    "rows_with_replace_placeholder": 25,
+    "empty_prompts": 0
   }
 }

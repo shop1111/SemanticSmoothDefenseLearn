@@ -1,3 +1,3 @@
 ﻿attack_type,rows,success_true,success_false,success_missing
 gcg,25,25,0,0
-autodan,10,6,4,0
+autodan_initial_population,25,0,0,25
