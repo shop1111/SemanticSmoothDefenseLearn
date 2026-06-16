@@ -11,7 +11,8 @@ PPL-gated SemanticSmooth 防御在两类 jailbreak attack 上的表现差异：
 
 当前创新策略是 **Adaptive PPL-Gated Semantic Smoothing Defense**：先用
 prompt perplexity 作为低成本门控信号；高 PPL 输入直接走 PPL block，低
-PPL 输入再进入 SemanticSmooth-lite 投票，从而避免对所有样本无差别使用高成本
+PPL 输入先进入 SemanticSmooth-lite 投票；只有 lite 投票接近 50/50 时，才调用
+original-style SemanticSmooth 复核，从而避免对所有样本无差别使用高成本
 smoothing。
 
 ## 项目结构
@@ -153,10 +154,11 @@ python src/ppl_smoothing_defense_kaggle.py \
   --summary-output results/qwen25_15b_gcg_autodan_adaptive_defense_summary.json
 ```
 
-`adaptive_ppl_gated` 使用当前 PPL 阈值作为 gate：
+`adaptive_ppl_gated` 使用当前 PPL 阈值作为 gate，并采用 lite-first fallback 策略：
 
 - `prompt_ppl > ppl_threshold`：路由到 `ppl_block`，不再执行 smoothing。
-- `prompt_ppl <= ppl_threshold`：路由到 `lite_smoothing`，执行 SemanticSmooth-lite 投票。
+- `prompt_ppl <= ppl_threshold`：先路由到 `lite_smoothing`，执行 SemanticSmooth-lite 投票。
+- 如果 lite 的 `smooth_success_rate` 距离 0.5 不超过 `--adaptive-uncertain-margin`，再路由到 `original_fallback`，使用 original-style SemanticSmooth 复核。
 
 ## 只跑 PPL/过滤指标
 
@@ -248,7 +250,7 @@ python src/prepare_defense_training_inputs.py \
 - `ppl_defended_success`：经过 PPL filter 后攻击是否仍成功。
 - `smooth_success`：SemanticSmooth 投票后攻击是否仍成功。
 - `smooth_success_rate`：扰动副本中攻击成功的比例。
-- `adaptive_route`：自适应策略路由，可能为 `ppl_block` 或 `lite_smoothing`。
+- `adaptive_route`：自适应策略路由，可能为 `ppl_block`、`lite_smoothing` 或 `original_fallback`。
 - `model_calls`：本脚本对模型的生成调用次数。
 - `elapsed_seconds`：单条样本耗时。
 

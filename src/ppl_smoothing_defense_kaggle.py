@@ -193,6 +193,12 @@ def parse_args() -> argparse.Namespace:
         help="Comma-separated transforms for --defense semantic_smooth_original.",
     )
     parser.add_argument("--judge", choices=["keyword"], default="keyword")
+    parser.add_argument(
+        "--adaptive-uncertain-margin",
+        type=float,
+        default=0.1,
+        help="For adaptive_ppl_gated, run original-style fallback when lite success rate is within this distance of 0.5.",
+    )
     parser.add_argument("--evaluate-benign", action="store_true", help="Evaluate benign prompt false positives.")
     parser.add_argument("--benign-limit", type=int, default=None)
     parser.add_argument("--store-text-fields", action="store_true", help="Store prompt previews and model responses in JSONL output.")
@@ -640,6 +646,12 @@ def majority_success(successes: list[bool], fallback: bool) -> bool:
     return mean(float(success) for success in successes) >= 0.5
 
 
+def is_uncertain_vote(success_rate: float | None, margin: float) -> bool:
+    if success_rate is None:
+        return False
+    return abs(success_rate - 0.5) <= margin
+
+
 def evaluate_smoothing_variants(
     prompt: str,
     target: QwenDefenseModel,
@@ -757,6 +769,8 @@ def evaluate_example(
     smooth_responses: list[str] = []
     smooth_transforms_used: list[str] = []
     smooth_success_rate: float | None = None
+    adaptive_lite_success_rate: float | None = None
+    adaptive_original_success_rate: float | None = None
     adaptive_route: str | None = None
     if not args.skip_generation and args.smooth_copies > 0:
         if args.defense == "adaptive_ppl_gated":
@@ -777,7 +791,26 @@ def evaluate_example(
                     example.prompt, target, args, rng, method="semantic_smooth_lite"
                 )
                 model_calls += smoothing_calls
-                smooth_mode_used = "adaptive:lite_smoothing"
+                adaptive_lite_success_rate = smooth_success_rate
+                if is_uncertain_vote(smooth_success_rate, args.adaptive_uncertain_margin):
+                    adaptive_route = "original_fallback"
+                    (
+                        smooth_success,
+                        smooth_success_rate,
+                        original_responses,
+                        original_transforms,
+                        _original_mode_used,
+                        original_calls,
+                    ) = evaluate_smoothing_variants(
+                        example.prompt, target, args, rng, method="semantic_smooth_original"
+                    )
+                    model_calls += original_calls
+                    smooth_responses.extend(original_responses)
+                    smooth_transforms_used.extend(original_transforms)
+                    adaptive_original_success_rate = smooth_success_rate
+                    smooth_mode_used = "adaptive:lite_then_original_fallback"
+                else:
+                    smooth_mode_used = "adaptive:lite_smoothing"
         else:
             (
                 smooth_success,
@@ -816,6 +849,8 @@ def evaluate_example(
         "smooth_mode_used": smooth_mode_used,
         "smooth_transforms": smooth_transforms_used,
         "adaptive_route": adaptive_route,
+        "adaptive_lite_success_rate": adaptive_lite_success_rate,
+        "adaptive_original_success_rate": adaptive_original_success_rate,
     }
 
     if is_benign:
