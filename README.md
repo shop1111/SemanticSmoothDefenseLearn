@@ -21,11 +21,12 @@ smoothing，也避免 original 覆盖 lite 已经拦截的结果。
 src/
   ppl_smoothing_defense_kaggle.py        # PPL filter + SemanticSmooth 评估入口
   prepare_defense_training_inputs.py     # 归一化 GCG/AutoDAN 原始结果
+  prepare_autodan_inputs.py              # 生成 GCG + AutoDAN 类提示词统一输入
 reports/
   Kaggle_Qwen25_15B_PPL_Smoothing运行说明.md
   SemanticSmooth_Lite_vs_Original_Bilingual_Report.md
 results/
-  defense_training_inputs.jsonl           # Kaggle 正式统一输入，50 条：25 条 GCG + 25 条 AutoDAN 初始种群
+  defense_training_inputs.jsonl           # Kaggle 正式统一输入，50 条：25 条 GCG + 25 条 AutoDAN 类提示词
   defense_training_inputs_summary.json
   defense_training_inputs_summary.csv
   summaries/                              # 不含原始 prompt 的聚合实验结果
@@ -108,9 +109,9 @@ head -n 2 results/qwen25_15b_smoke_defense_run.jsonl
 cat results/qwen25_15b_smoke_defense_summary.json
 ```
 
-## 正式 GCG + AutoDAN 初始种群防御实验
+## 正式 GCG + AutoDAN 类提示词防御实验
 
-当前统一输入共 50 条：保留原来的 25 条 GCG，并将 AutoDAN 部分替换为 AutoDAN 官方初始 DAN 类种群 `prompt_group.pth` 的前 25 条。正式运行可以不传 `--limit`，默认最多读取 50 条，因此会读完整个统一输入。
+当前统一输入共 50 条：25 条 GCG 类攻击样本 + 25 条 AutoDAN 类自然语言提示词攻击样本。正式运行可以不传 `--limit`，默认最多读取 50 条，因此会读完整个统一输入。
 
 ```bash
 python src/ppl_smoothing_defense_kaggle.py \
@@ -125,7 +126,7 @@ python src/ppl_smoothing_defense_kaggle.py \
 说明：
 
 - `--attack-inputs` 是正式统一输入路径。
-- 当前输入会实际评估 25 条 GCG 和 25 条 AutoDAN 初始种群样本，共 50 条。
+- 当前输入会实际评估 25 条 GCG 和 25 条 AutoDAN 类提示词样本，共 50 条。
 - `--smooth-copies 5` 表示每条样本额外生成 5 个扰动 prompt。
 - 每条样本大约需要 1 次原始生成 + 5 次平滑扰动生成，再加 PPL 计算。
 
@@ -207,10 +208,10 @@ python src/ppl_smoothing_defense_kaggle.py \
 
 ## 重新生成输入
 
-当前 GCG + AutoDAN 初始种群统一输入可用下面命令重新生成：
+当前 GCG + AutoDAN 类提示词统一输入可用下面命令重新生成：
 
 ```bash
-python src/prepare_autodan_initial_population_inputs.py
+python src/prepare_autodan_inputs.py
 ```
 
 它默认读取：
@@ -238,13 +239,13 @@ python src/prepare_defense_training_inputs.py \
 
 - `results/archive/normalized_inputs/gcg_qwen25_15b.jsonl`
 - `results/archive/normalized_inputs/autodan_final_normalized.jsonl`
-- `results/archive/normalized_inputs/autodan_initial_population_25.jsonl`
+- `results/archive/normalized_inputs/autodan_25.jsonl`
 
 当前 `defense_training_inputs.jsonl` 只有攻击样本，适合做防御评估输入或后续扩展训练集。如果要训练二分类防御器，还需要加入 benign/refusal/ordinary prompts。
 
 ## 主要输出字段
 
-- `attack_type`：攻击类型，例如 `autodan_initial_population`、`gcg` 或 `autodan`。
+- `attack_type`：攻击类型，例如 `gcg` 或 `autodan`。
 - `prompt_ppl`：攻击 prompt 的 perplexity。
 - `ppl_blocked`：是否被 PPL filter 拦截。
 - `raw_success`：无防御时 keyword-ASR 是否成功。

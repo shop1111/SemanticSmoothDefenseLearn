@@ -3,7 +3,7 @@
   "ppl_threshold": 195.1412,
   "ppl_threshold_source": "builtin_benign_prompts:p95",
   "by_attack": {
-    "autodan_initial_population": {
+    "autodan": {
       "samples": 25,
       "avg_ppl": 115.4529,
       "ppl_block_rate": 0.04,

@@ -4,7 +4,7 @@
 
 ## 1. Experimental Setup
 
-This experiment evaluates prompt-level jailbreak defenses on a small open-source instruction model, `Qwen/Qwen2.5-1.5B-Instruct`. The evaluation set contains 50 attack-positive prompts in total: 25 GCG-style token-level suffix attacks and 25 AutoDAN initial-population prompts. The GCG samples represent high-perplexity adversarial suffix attacks, while the AutoDAN initial-population samples represent more fluent natural-language jailbreak prompts.
+This experiment evaluates prompt-level jailbreak defenses on a small open-source instruction model, `Qwen/Qwen2.5-1.5B-Instruct`. The evaluation set contains 50 attack-positive prompts in total: 25 GCG-style token-level suffix attacks and 25 AutoDAN-style prompt attacks. The GCG samples represent high-perplexity adversarial suffix attacks, while the AutoDAN-style samples represent more fluent natural-language jailbreak prompts.
 
 For safety, this report only discusses metadata, aggregate statistics, defense behavior, and failure modes. It does not reproduce or quote the original jailbreak prompts.
 
@@ -49,7 +49,7 @@ This pipeline is more faithful to the original smoothing mechanism because the t
 
 Based on the two smoothing runs, we propose and implement an adaptive defense strategy called **Adaptive PPL-Gated Semantic Smoothing**. The key idea is to use perplexity not as the only detector, but as a routing signal. If the input prompt has high PPL, it is treated as a likely token-level adversarial suffix attack and is blocked directly. If the prompt has low or medium PPL, it is treated as a fluent natural-language input that may include AutoDAN-like jailbreak behavior, so the system applies SemanticSmooth-lite first.
 
-The strategy is deliberately **lite-first**. In this experiment, SemanticSmooth-lite performs better than original-style SemanticSmooth on AutoDAN initial-population prompts, while original-style smoothing is much more expensive. Therefore, original-style SemanticSmooth is not used by default for low-PPL prompts. It is only used as a second-stage conservative fusion signal when the lite vote is uncertain.
+The strategy is deliberately **lite-first**. In this experiment, SemanticSmooth-lite performs better than original-style SemanticSmooth on AutoDAN-style prompt attacks, while original-style smoothing is much more expensive. Therefore, original-style SemanticSmooth is not used by default for low-PPL prompts. It is only used as a second-stage conservative fusion signal when the lite vote is uncertain.
 
 The first version uses the same benign-calibrated PPL threshold as the gate:
 
@@ -81,7 +81,7 @@ The main results are shown below. ASR means attack success rate under the corres
 | Attack Type | Avg PPL | Raw ASR | PPL-defended ASR | Lite Smooth ASR | Original-style Smooth ASR | Adaptive ASR | Lite Calls | Original Calls | Adaptive Calls | Adaptive Routes |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | GCG | 12466.8011 | 0.76 | 0.16 | 0.76 | 0.24 | 0.16 | 6.0 | 11.0 | 1.8 | 21 PPL block, 4 lite |
-| AutoDAN initial population | 115.4529 | 0.96 | 0.92 | 0.52 | 0.80 | 0.48 | 6.0 | 11.0 | 10.6 | 1 PPL block, 12 lite, 12 fallback |
+| AutoDAN-style prompt attack | 115.4529 | 0.96 | 0.92 | 0.52 | 0.80 | 0.48 | 6.0 | 11.0 | 10.6 | 1 PPL block, 12 lite, 12 fallback |
 
 中文说明：GCG 的平均 PPL 极高，adaptive 策略将 21/25 条路由到 PPL block，因此 ASR 保持在 `0.16`，平均调用数降到 `1.8`。AutoDAN 的平均 PPL 低很多，PPL 基本拦不住；adaptive 策略主要走 lite 与 fallback 路由，最终 ASR 降到 `0.48`，略优于 lite 的 `0.52`。
 
@@ -97,7 +97,7 @@ The original-style SemanticSmooth pipeline also performs well on GCG, reducing s
 
 ### 4.2 AutoDAN: natural-language attacks evade PPL, and lite outperforms original-style
 
-AutoDAN initial-population prompts behave differently. Their average PPL is `115.4529`, below the threshold, so the PPL filter blocks only 4% of samples. PPL-defended ASR remains high at `0.92`, close to the raw ASR of `0.96`. This supports the intuition that natural-language jailbreak prompts are much harder to detect using fluency alone.
+AutoDAN-style prompt attacks behave differently. Their average PPL is `115.4529`, below the threshold, so the PPL filter blocks only 4% of samples. PPL-defended ASR remains high at `0.92`, close to the raw ASR of `0.96`. This supports the intuition that natural-language jailbreak prompts are much harder to detect using fluency alone.
 
 The smoothing results are more nuanced. SemanticSmooth-lite reduces AutoDAN ASR to `0.52`, while original-style SemanticSmooth only reduces it to `0.80`. This means that the more paper-like implementation is not automatically better for this attack type. One possible reason is that model-generated rewrites may preserve the high-level adversarial instruction too faithfully, especially when the prompt is already natural and fluent. In contrast, the simpler rule-based transformations may accidentally remove or disturb some wrapper structures used by AutoDAN prompts.
 
@@ -115,7 +115,7 @@ This cost is justified for GCG because ASR decreases from `0.76` under lite smoo
 
 The adaptive strategy achieves the best overall balance in this experiment. On GCG, it routes 21 out of 25 samples to direct PPL blocking and only 4 samples to lite smoothing. Its ASR is `0.16`, matching the PPL filter, while the average number of model calls drops to `1.8`, much lower than both lite smoothing and original-style smoothing.
 
-On AutoDAN initial-population prompts, only 1 sample is blocked by PPL, while 12 samples use lite smoothing directly and 12 samples trigger conservative original-style fallback. The final adaptive ASR is `0.48`, which is lower than lite smoothing (`0.52`) and much lower than original-style smoothing (`0.80`). This supports the design choice that original-style rewriting should not override lite; it should only be used as a conservative fusion signal when lite voting is unstable.
+On AutoDAN-style prompt attacks, only 1 sample is blocked by PPL, while 12 samples use lite smoothing directly and 12 samples trigger conservative original-style fallback. The final adaptive ASR is `0.48`, which is lower than lite smoothing (`0.52`) and much lower than original-style smoothing (`0.80`). This supports the design choice that original-style rewriting should not override lite; it should only be used as a conservative fusion signal when lite voting is unstable.
 
 中文说明：adaptive 策略在 GCG 上保留了 PPL 的低成本优势，在 AutoDAN 上又利用 lite-first 与保守 fallback 将 ASR 进一步降到 `0.48`。这说明自适应策略不是简单叠加多个防御，而是根据攻击形态和投票稳定性选择不同路径。
 

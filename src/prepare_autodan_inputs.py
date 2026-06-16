@@ -1,9 +1,9 @@
-"""Prepare defense inputs from the AutoDAN initial DAN-like population.
+"""Prepare defense inputs from AutoDAN-style DAN-like prompt templates.
 
-This script reads the official AutoDAN ``assets/prompt_group.pth`` file without
-requiring PyTorch. The file is a PyTorch zip archive whose data payload is a
-plain pickle list of strings. It combines the first N population members with
-the first N AdvBench goals and writes this project's normalized JSONL input.
+This script reads the AutoDAN ``assets/prompt_group.pth`` prompt template file
+without requiring PyTorch. The file is a PyTorch zip archive whose data payload
+is a plain pickle list of strings. It combines N AutoDAN-style templates with N
+AdvBench goals and writes this project's normalized JSONL input.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ AUTODAN_ROOT = PROJECT_ROOT / "references" / "AutoDAN"
 DEFAULT_POPULATION = AUTODAN_ROOT / "assets" / "prompt_group.pth"
 DEFAULT_ADV_BENCH = AUTODAN_ROOT / "data" / "advbench" / "harmful_behaviors.csv"
 DEFAULT_GCG_INPUT = PROJECT_ROOT / "results" / "archive" / "normalized_inputs" / "gcg_qwen25_15b.jsonl"
-DEFAULT_ARCHIVE_OUTPUT = PROJECT_ROOT / "results" / "archive" / "normalized_inputs" / "autodan_initial_population_25.jsonl"
+DEFAULT_ARCHIVE_OUTPUT = PROJECT_ROOT / "results" / "archive" / "normalized_inputs" / "autodan_25.jsonl"
 DEFAULT_TRAINING_OUTPUT = PROJECT_ROOT / "results" / "defense_training_inputs.jsonl"
 DEFAULT_SUMMARY_OUTPUT = PROJECT_ROOT / "results" / "defense_training_inputs_summary.json"
 DEFAULT_SUMMARY_CSV = PROJECT_ROOT / "results" / "defense_training_inputs_summary.csv"
@@ -140,7 +140,7 @@ def main() -> None:
                 "full_prompt": full_prompt,
                 "final_response": None,
                 "success": None,
-                "attack_type": "autodan_initial_population",
+                "attack_type": "autodan",
                 "source_artifact": str(args.population),
                 "source_dataset": str(args.advbench),
             }
@@ -153,7 +153,7 @@ def main() -> None:
                 "task": "jailbreak_attack_detection",
                 "label": "attack",
                 "is_attack": True,
-                "attack_type": "autodan_initial_population",
+                "attack_type": "autodan",
                 "attack_success": None,
                 "behavior_id": f"advbench_{index}",
                 "goal": goal,
@@ -199,7 +199,7 @@ def main() -> None:
             "success_missing": sum(row.get("attack_success") is None for row in gcg_training_rows),
         },
         {
-            "attack_type": "autodan_initial_population",
+            "attack_type": "autodan",
             "rows": len(autodan_training_rows),
             "success_true": 0,
             "success_false": 0,
