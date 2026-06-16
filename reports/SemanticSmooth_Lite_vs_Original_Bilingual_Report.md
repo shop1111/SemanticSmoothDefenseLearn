@@ -1,6 +1,6 @@
-# Defense Experiment Report: SemanticSmooth-lite vs. Original-style SemanticSmooth
+# Defense Experiment Report: SemanticSmooth-lite, Original-style SemanticSmooth, and Adaptive PPL-Gated Smoothing
 
-中文标题：SemanticSmooth-lite 与原版风格 SemanticSmooth 防御实验报告
+中文标题：SemanticSmooth-lite、原版风格 SemanticSmooth 与自适应 PPL 门控语义平滑防御实验报告
 
 ## 1. Experimental Setup
 
@@ -8,17 +8,18 @@ This experiment evaluates prompt-level jailbreak defenses on a small open-source
 
 For safety, this report only discusses metadata, aggregate statistics, defense behavior, and failure modes. It does not reproduce or quote the original jailbreak prompts.
 
-The experiment compares three defense outcomes:
+The experiment compares three implemented defense outcomes and proposes one adaptive strategy built from the observed failure modes:
 
 | Defense | Description | Main Cost |
 | --- | --- | ---: |
 | PPL Filter | Blocks prompts whose perplexity exceeds a benign-calibrated threshold | No extra generation beyond scoring |
 | SemanticSmooth-lite | Creates 5 rule-based semantic variants and aggregates response safety decisions | About 6 generation calls per sample |
 | Original-style SemanticSmooth | Uses the model to generate 5 semantic rewrites, then queries the model on each rewrite | About 11 generation calls per sample |
+| Adaptive PPL-Gated Semantic Smoothing | Uses PPL as a gate: high-PPL prompts are blocked, low-PPL prompts are routed to lite smoothing | Avoids smoothing calls for high-PPL prompts |
 
 The PPL threshold is calibrated from built-in benign prompts using the 95th percentile. The resulting threshold is `195.1412`.
 
-中文说明：本实验使用同一批 50 条攻击样本比较三类防御输出：PPL 过滤、规则式 SemanticSmooth-lite，以及更接近原论文流程的模型改写版 SemanticSmooth。报告只呈现统计结果，不展示原始越狱提示词。
+中文说明：本实验使用同一批 50 条攻击样本比较三类防御输出：PPL 过滤、规则式 SemanticSmooth-lite，以及更接近原论文流程的模型改写版 SemanticSmooth。在此基础上，报告提出并实现一种自适应 PPL 门控策略。报告只呈现统计结果，不展示原始越狱提示词。
 
 ## 2. Defense Methods
 
@@ -43,6 +44,27 @@ The original-style SemanticSmooth implementation is closer to the paper's main i
 This pipeline is more faithful to the original smoothing mechanism because the transformations are produced by a language model rather than simple rules. However, it is also more expensive: with 5 smoothing copies, each sample requires approximately 1 raw generation, 5 rewrite generations, and 5 response generations.
 
 中文说明：original-style 版本更接近原论文，因为它使用模型生成语义保持改写；但它的代价也更高，每条样本大约需要 11 次生成调用。
+
+### 2.4 Proposed Adaptive PPL-Gated Semantic Smoothing
+
+Based on the two smoothing runs, we propose and implement an adaptive defense strategy called **Adaptive PPL-Gated Semantic Smoothing**. The key idea is to use perplexity not as the only detector, but as a routing signal. If the input prompt has high PPL, it is treated as a likely token-level adversarial suffix attack and is blocked directly. If the prompt has low PPL, it is treated as a fluent natural-language input that may include AutoDAN-like jailbreak behavior, so the system applies SemanticSmooth-lite voting.
+
+The first version uses the same benign-calibrated PPL threshold as the gate:
+
+```text
+ppl = compute_perplexity(prompt)
+
+if ppl > ppl_threshold:
+    route = "ppl_block"
+    final_success = False
+else:
+    route = "lite_smoothing"
+    final_success = majority_vote(SemanticSmooth-lite(prompt))
+```
+
+This adaptive design is attack-aware, cost-aware, and failure-aware. It is attack-aware because it treats high-PPL suffix attacks and low-PPL natural-language attacks differently. It is cost-aware because it avoids unnecessary smoothing calls for prompts that can already be blocked by PPL. It is failure-aware because it explicitly accounts for the fact that PPL fails on fluent jailbreaks, while uniform smoothing may waste computation on high-PPL GCG prompts.
+
+中文说明：自适应策略不是简单叠加 PPL 和 smoothing，而是把 PPL 当作“路由器”。高 PPL 输入更像 GCG 这类 token-level suffix 攻击，直接拦截；低 PPL 输入可能是正常请求，也可能是 AutoDAN 这类自然语言越狱，因此进入 SemanticSmooth-lite 投票。这样可以根据攻击形态选择不同防御路径，是本项目的主要创新点。
 
 ## 3. Results
 
@@ -93,11 +115,12 @@ Fourth, the original-style transformation model is the same small Qwen model use
 
 中文说明：主要局限包括样本量较小、keyword-ASR 粗糙、良性任务效用评估不足，以及改写模型能力有限。
 
-## 6. Conclusion and Innovation Direction
+## 6. Conclusion and Adaptive Strategy
 
 The experiment shows that jailbreak defense effectiveness strongly depends on the attack form. PPL filtering is highly effective against GCG-style token suffix attacks, but it mostly fails against natural-language AutoDAN prompts. Original-style SemanticSmooth improves robustness against GCG compared with the lite version, but it is more expensive and less effective on AutoDAN in this run.
 
-These findings suggest a practical innovation direction: an attack-aware adaptive defense. Instead of applying one defense uniformly, the system can first use PPL as a low-cost attack-shape signal. High-PPL prompts can be blocked or handled with a strict filter, while low-PPL natural-language prompts can be routed to smoothing-based defenses. The number and type of smoothing transformations can also be adjusted based on the prompt's risk profile, creating a cost-aware defense pipeline.
+These findings motivate the implemented adaptive strategy. Instead of applying one defense uniformly, Adaptive PPL-Gated Semantic Smoothing first uses PPL as a low-cost attack-shape signal. High-PPL prompts are routed to direct PPL blocking, while low-PPL natural-language prompts are routed to SemanticSmooth-lite. This strategy better matches the defense mechanism to the attack morphology observed in the experiment: GCG is handled by the cheap and effective high-PPL gate, while AutoDAN-like prompts receive semantic perturbation and voting.
 
-中文总结：本实验最重要的结论是“防御不能一刀切”。GCG 和 AutoDAN 的攻击形态不同，最有效的防御路径也不同。因此可以将后续创新点设计为 attack-aware adaptive defense：先用 PPL 判断攻击形态，再选择 PPL block、lite smoothing 或 original-style smoothing，从而同时考虑 ASR、防御成本和模型效用。
+The adaptive strategy is therefore the main methodological innovation of this project. It does not claim that PPL alone is a universal detector or that smoothing alone is always robust. Instead, it uses the strengths and weaknesses observed in the reproduction experiments to build a cost-aware defense pipeline.
 
+中文总结：本实验最重要的结论是“防御不能一刀切”。GCG 和 AutoDAN 的攻击形态不同，最有效的防御路径也不同。因此本项目提出并实现 Adaptive PPL-Gated Semantic Smoothing：先用 PPL 判断攻击形态，高 PPL 走 PPL block，低 PPL 走 lite smoothing，从而同时考虑 ASR、防御成本和模型效用。这一自适应策略是本项目相对于单纯复现的创新部分。

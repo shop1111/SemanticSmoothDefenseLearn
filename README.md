@@ -1,13 +1,18 @@
 # SemanticSmooth Defense Learning Project
 
 这是一个面向 Kaggle 的轻量复现实验项目，用来观察 PPL filter、
-SemanticSmooth-lite 和 original-style SemanticSmooth 防御在两类 jailbreak
-attack 上的表现差异：
+SemanticSmooth-lite、original-style SemanticSmooth 和自适应
+PPL-gated SemanticSmooth 防御在两类 jailbreak attack 上的表现差异：
 
 - **GCG 类攻击**：token-level adversarial suffix，常表现为不自然的 token 后缀，PPL 通常较高。
 - **AutoDAN 类攻击**：natural-language jailbreak prompt，可读性更强，语义更自然，PPL 通常更低。
 
 默认模型是 `Qwen/Qwen2.5-1.5B-Instruct`。
+
+当前创新策略是 **Adaptive PPL-Gated Semantic Smoothing Defense**：先用
+prompt perplexity 作为低成本门控信号；高 PPL 输入直接走 PPL block，低
+PPL 输入再进入 SemanticSmooth-lite 投票，从而避免对所有样本无差别使用高成本
+smoothing。
 
 ## 项目结构
 
@@ -135,6 +140,24 @@ python src/ppl_smoothing_defense_kaggle.py \
   --summary-output results/qwen25_15b_gcg_autodan_original_defense_summary.json
 ```
 
+如果要运行自适应 PPL-gated 策略：
+
+```bash
+python src/ppl_smoothing_defense_kaggle.py \
+  --model Qwen/Qwen2.5-1.5B-Instruct \
+  --attack-inputs results/defense_training_inputs.jsonl \
+  --defense adaptive_ppl_gated \
+  --smooth-copies 5 \
+  --max-new-tokens 64 \
+  --output results/qwen25_15b_gcg_autodan_adaptive_defense_run.jsonl \
+  --summary-output results/qwen25_15b_gcg_autodan_adaptive_defense_summary.json
+```
+
+`adaptive_ppl_gated` 使用当前 PPL 阈值作为 gate：
+
+- `prompt_ppl > ppl_threshold`：路由到 `ppl_block`，不再执行 smoothing。
+- `prompt_ppl <= ppl_threshold`：路由到 `lite_smoothing`，执行 SemanticSmooth-lite 投票。
+
 ## 只跑 PPL/过滤指标
 
 如果 Kaggle 时间紧，可以先跳过生成，只计算 PPL filter 相关指标：
@@ -225,6 +248,7 @@ python src/prepare_defense_training_inputs.py \
 - `ppl_defended_success`：经过 PPL filter 后攻击是否仍成功。
 - `smooth_success`：SemanticSmooth 投票后攻击是否仍成功。
 - `smooth_success_rate`：扰动副本中攻击成功的比例。
+- `adaptive_route`：自适应策略路由，可能为 `ppl_block` 或 `lite_smoothing`。
 - `model_calls`：本脚本对模型的生成调用次数。
 - `elapsed_seconds`：单条样本耗时。
 
